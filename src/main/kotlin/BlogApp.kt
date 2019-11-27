@@ -103,7 +103,7 @@ fun Application.main() {
                 delete {
                     call.receive<PostSnippet>()
                     snippets.removeAll { true }
-                    call.respond(mapOf("OK - Deleted" to true))
+                    call.respond(mapOf("OK" to true))
                 }
             }
         }

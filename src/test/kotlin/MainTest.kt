@@ -5,7 +5,6 @@ import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.junit.jupiter.api.Test
-
 import io.ktor.application.*
 import io.ktor.http.*
 import io.ktor.server.testing.*
@@ -18,13 +17,14 @@ class MainTest {
     data class Base(val snippets: List<Snippet>)
     data class TokenJson(val token: String)
     private val jacksonMapper = ObjectMapper().registerModule(KotlinModule()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+    private val mainApplication = Application::main
 
     @BeforeEach
     internal fun beforeAll(){
         snippets.removeAll { true }
     }
     @Test
-    fun `get on root returns My Example Blog`() = withTestApplication(Application::main) {
+    fun `get on root returns My Example Blog`() = withTestApplication(mainApplication) {
         val call = handleRequest(HttpMethod.Get, "/")
         with(call) {
             assertEquals(HttpStatusCode.OK, response.status())
@@ -32,7 +32,7 @@ class MainTest {
         }
     }
     @Test
-    fun `get on snippets returns test hello test world`() = withTestApplication(Application::main) {
+    fun `get on snippets returns test hello test world`() = withTestApplication(mainApplication) {
         snippets.add(Snippet(user = "test", text = "hello"))
         snippets.add(Snippet(user = "test", text = "world"))
 
@@ -52,7 +52,7 @@ class MainTest {
     }
     @InternalAPI // needed because encodeBase64() is experimental
     @Test
-    fun `post to login-register using basic authentication returns an access token `() = withTestApplication(Application::main) {
+    fun `post to login-register using basic authentication returns an access token `() = withTestApplication(mainApplication) {
         val user = User("test","test")
         val call = handleRequest(HttpMethod.Post, "/login-register") {
             val up = "${user.name}:${user.password}"
@@ -69,7 +69,7 @@ class MainTest {
     }
     @InternalAPI
     @Test
-    fun `post to login-register using basic authentication fails with Unauthorized if credentials are wrong`() = withTestApplication(Application::main) {
+    fun `post to login-register using basic authentication fails with Unauthorized if credentials are wrong`() = withTestApplication(mainApplication) {
         val user = User("test","rubbish")
 
         val call = handleRequest(HttpMethod.Post, "/login-register") {
@@ -85,7 +85,7 @@ class MainTest {
     }
 
     @Test
-    fun `can post to snippets`() = withTestApplication(Application::main)  {
+    fun `can post to snippets`() = withTestApplication(mainApplication)  {
         val user = User("test","test")
         val token = simpleJwt.sign(user.name)
 
@@ -104,7 +104,27 @@ class MainTest {
             assertEquals("test", firstSnippet.user)
             assertEquals("mysnippet!", firstSnippet.text)
         }
+    }
 
+    @Test
+    fun `delete snippets removes all snippets`() = withTestApplication(mainApplication) {
+        snippets.add(Snippet(user = "test", text = "hello"))
+        snippets.add(Snippet(user = "test", text = "world"))
+
+        val user = User("test","test")
+        val token = simpleJwt.sign(user.name)
+
+        val call = handleRequest(HttpMethod.Delete, "/snippets"){
+            val bearer = "Bearer $token"
+            addHeader(HttpHeaders.Authorization, bearer)
+            addHeader(HttpHeaders.ContentType, "application/json")
+            setBody("{\"snippet\": {\"text\" : \"mysnippet!\"}}")
+        }
+        with(call) {
+            org.junit.jupiter.api.Assertions.assertEquals(io.ktor.http.HttpStatusCode.OK, response.status())
+            org.junit.jupiter.api.Assertions.assertEquals("{\"OK\":true}", response.content)
+            org.junit.jupiter.api.Assertions.assertEquals(0, blog.snippets.size)
+        }
     }
 }
 
