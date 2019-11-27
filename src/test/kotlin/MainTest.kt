@@ -53,41 +53,42 @@ class MainTest {
     @InternalAPI // needed because encodeBase64() is experimental
     @Test
     fun `post to login-register using basic authentication returns an access token `() = withTestApplication(mainApplication) {
-        val user = User("test","test")
+        val account = Account("test","test")
         val call = handleRequest(HttpMethod.Post, "/login-register") {
-            val up = "${user.name}:${user.password}"
+            val up = "${account.user}:${account.password}"
             val encoded = up.toByteArray(Charsets.ISO_8859_1).encodeBase64() //this is actually ignored in the application as body is used to provide credentials
             addHeader(HttpHeaders.Authorization, "Basic $encoded")
             addHeader(HttpHeaders.ContentType, "application/json")
-            setBody("{\"user\": \"${user.name}\",\"password\":\"${user.password}\"}")
+            setBody(jacksonMapper.writeValueAsString(account))
         }
         with(call){
             assertEquals(HttpStatusCode.OK, response.status())
             val tokenDecoded:TokenJson = jacksonMapper.readValue(response.content ?:"")
-            assertEquals("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJuYW1lIjoidGVzdCJ9.96At6bwFhxebk4xk4tpkOFj-3ThxkLFNHkHaKoedOfA",tokenDecoded.token)
+            assertEquals(simpleJwt.sign(account.user),tokenDecoded.token)
         }
     }
     @InternalAPI
     @Test
     fun `post to login-register using basic authentication fails with Unauthorized if credentials are wrong`() = withTestApplication(mainApplication) {
-        val user = User("test","rubbish")
+        val account = Account("test","rubbish")
 
         val call = handleRequest(HttpMethod.Post, "/login-register") {
-            val up = "${user.name}:${user.password}"
+            val up = "${account.user}:${account.password}"
             val encoded = up.toByteArray(Charsets.ISO_8859_1).encodeBase64() //this is actually ignored in the application as body is used to provide credentials
             addHeader(HttpHeaders.Authorization, "Basic $encoded")
             addHeader(HttpHeaders.ContentType, "application/json")
-            setBody("{\"user\": \"${user.name}\",\"password\":\"${user.password}\"}")
+            setBody("{\"user\": \"${account.user}\",\"password\":\"${account.password}\"}")
         }
         with(call){
             assertEquals(HttpStatusCode.Unauthorized, response.status())
+            assertEquals("{\"OK\":false,\"error\":\"Invalid credentials\"}",response.content)
         }
     }
 
     @Test
     fun `can post to snippets`() = withTestApplication(mainApplication)  {
-        val user = User("test","test")
-        val token = simpleJwt.sign(user.name)
+        val account = Account("test","test")
+        val token = simpleJwt.sign(account.user)
 
         val call = handleRequest(HttpMethod.Post, "/snippets"){
             val bearer = "Bearer $token"
@@ -111,8 +112,8 @@ class MainTest {
         snippets.add(Snippet(user = "test", text = "hello"))
         snippets.add(Snippet(user = "test", text = "world"))
 
-        val user = User("test","test")
-        val token = simpleJwt.sign(user.name)
+        val account = Account("test","test")
+        val token = simpleJwt.sign(account.user)
 
         val call = handleRequest(HttpMethod.Delete, "/snippets"){
             val bearer = "Bearer $token"

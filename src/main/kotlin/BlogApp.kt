@@ -31,14 +31,13 @@ open class SimpleJWT(secret: String) {
 }
 val simpleJwt = SimpleJWT("my-super-secret-for-jwt")
 
-class User(val name: String, val password: String)
+class Account(val user: String, val password: String)
 
 val users = Collections.synchronizedMap(
-    listOf(User("test", "test"))
-        .associateBy { it.name }
+    listOf(Account("test", "test"))
+        .associateBy { it.user }
         .toMutableMap()
 )
-class LoginRegister(val user: String, val password: String)
 
 class InvalidCredentialsException(message: String) : RuntimeException(message)
 
@@ -83,10 +82,10 @@ fun Application.main() {
     }
     routing {
         post("/login-register") {
-            val post = call.receive<LoginRegister>()
-            val user = users.getOrPut(post.user) { User(post.user, post.password) }
-            if (user.password != post.password) throw InvalidCredentialsException("Invalid credentials")
-            call.respond(mapOf("token" to simpleJwt.sign(user.name)))
+            val post = call.receive<Account>()
+            val account = users.getOrPut(post.user) { Account(post.user, post.password) }
+            if (account.password != post.password) throw InvalidCredentialsException("Invalid credentials")
+            call.respond(mapOf("token" to simpleJwt.sign(account.user)))
         }
 
         route("/snippets"){
